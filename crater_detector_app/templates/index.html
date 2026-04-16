@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Lunar Surface Analysis</title>
+    <!-- FontAwesome for futuristic icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style System -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <nav class="app-nav">
+        <div class="nav-links">
+            <button class="nav-link active" onclick="switchPage('upload', event)">1. Satellite Image Upload</button>
+            <button class="nav-link" onclick="switchPage('detection', event)" {{ 'disabled' if not uploaded else '' }}>2. AI Crater Detection</button>
+            <button class="nav-link" onclick="switchPage('density', event)" {{ 'disabled' if not uploaded else '' }}>3. Terrain Analysis</button>
+            <button class="nav-link" onclick="switchPage('regional', event)" {{ 'disabled' if not uploaded else '' }}>4. Regional Crater Map</button>
+            <button class="nav-link" onclick="switchPage('safety', event)" {{ 'disabled' if not uploaded else '' }}>5. Landing Safety Map</button>
+        </div>
+    </nav>
+
+    <div class="page-container">
+
+        <!-- PAGE 1: UPLOAD -->
+        <div id="page-upload" class="page active">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-header-left"><i class="fa-solid fa-satellite" style="color: var(--primary-color);"></i> STEP 1: SATELLITE IMAGE ACQUISITION</div>
+                </div>
+                <div class="panel-body center-layout">
+                    <div class="dash-col" style="width:100%; max-width:650px;">
+                        <div class="hud-card upload-card mb-20" style="text-align: center;">
+                            <div class="hud-card-title mb-20" style="justify-content:center; font-size:1rem;">UPLOAD LUNAR SATELLITE IMAGES</div>
+                            
+                            <form id="upload-form" method="POST" enctype="multipart/form-data">
+                                <div class="upload-area mb-20" id="upload-area">
+                                    <i class="fa-solid fa-cloud-arrow-up mb-10" style="font-size: 3rem; color: #555;"></i>
+                                    <input type="file" id="image-upload" name="image" accept="image/*" webkitdirectory directory multiple required>
+                                    <label for="image-upload" class="file-label">
+                                        <strong style="color: #fff; font-size:1.2rem;">SELECT SECTOR SCANS</strong> <br><br> (Drag & Drop multiple images for regional mapping)
+                                    </label>
+                                    <div id="file-name" class="file-name"></div>
+                                </div>
+
+                                <button type="submit" id="submit-btn" class="action-btn" disabled>
+                                    INITIATE NEURAL NETWORK
+                                </button>
+                                
+                                <div id="loading-indicator" class="loading-indicator">
+                                    <div class="spinner" style="width:40px; height:40px;"></div>
+                                    <p id="loading-text" style="font-size:1rem; margin-top:10px; font-family:var(--font-heading); color:var(--primary-color);">ESTABLISHING UPLINK...</p>
+                                </div>
+                            </form>
+                            
+                            <div class="mt-20">
+                                <p style="font-size:0.75rem; color:var(--text-muted); line-height:1.5;">To identify safe landing zones for missions like Artemis or Chandrayaan, the ML pipeline requires high-res lunar datasets. Manual mapping is labor-intensive; this platform automates terrain assessment.</p>
+                            </div>
+                        </div>
+
+                        {% if uploaded %}
+                        <div class="hud-card mt-20" style="border-color:var(--status-color);">
+                            <div class="flex-row">
+                                <div style="font-size: 1.2rem; color: var(--status-color); font-family: var(--font-numbers);">SCAN SUCCESS</div>
+                                <i class="fa-solid fa-check-circle" style="color:var(--status-color); font-size:1.5rem;"></i>
+                            </div>
+                            <p style="font-size:0.8rem; color:var(--text-main); margin-top:10px;">{{ summary.images }} arrays processed in {{ reports[0].stats.time if reports else "0.00" }} SEC.</p>
+                            <button onclick="switchPage('detection')" class="action-btn mt-20" style="background:var(--status-color); color:#000; border:none;">PROCEED TO DETECTION -></button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE 2: AI DETECTION -->
+        <div id="page-detection" class="page">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-header-left"><i class="fa-solid fa-microchip" style="color: var(--primary-color);"></i> STEP 2: CRATER DETECTION PIPELINE</div>
+                    <div class="panel-header-right">AI CORE: <span style="color: var(--status-color);">DETECTING CRATERS AUTOMATICALLY</span></div>
+                </div>
+                
+                <div class="panel-body two-cols">
+                    {% if uploaded and reports %}
+                    <div class="dash-col">
+                        <div class="feed-header mb-10" id="detection-filename-header">AI VISION OUTPUT // {{ reports[0].filename }}</div>
+                        <div class="feed-image-container">
+                            <img id="crater-image" src="{{ '/' + reports[0].result_image }}" class="feed-img" alt="Detection Map">
+                            <div class="crosshair-center"></div>
+                        </div>
+                        
+                        <!-- Slider Controls -->
+                        <div class="flex-row gap-20 mt-10" style="justify-content: center; align-items: center;">
+                            <button class="action-btn" style="width: auto; padding: 5px 15px; margin-top:0;" onclick="prevImage()"><i class="fa-solid fa-caret-left"></i> Prev</button>
+                            <div id="image-counter" class="metric-value" style="font-size: 1rem; color:#fff; font-family:var(--font-numbers);">Image 1 / {{ images|length }}</div>
+                            <button class="action-btn" style="width: auto; padding: 5px 15px; margin-top:0;" onclick="nextImage()">Next <i class="fa-solid fa-caret-right"></i></button>
+                        </div>
+
+                        <!-- Optional Thumbnail Preview -->
+                        <div class="thumbnails mt-10">
+                            {% for img in images %}
+                                <img src="/static/results/{{ img }}" onclick="setSliderImage({{ loop.index0 }})" style="width: 60px; height: 60px; object-fit: cover; cursor: pointer; border: 2px solid {% if loop.index0 == 0 %}var(--primary-color){% else %}transparent{% endif %}; transition: border-color 0.2s;" class="slider-thumb" id="thumb-{{ loop.index0 }}">
+                            {% endfor %}
+                        </div>
+
+                        <div class="feed-footer mt-10">
+                            <div class="ff-item">
+                                <div class="ff-label">CRATERS DETECTED</div>
+                                <div class="ff-value" id="craters-total-val">{{ reports[0].stats.total }}</div>
+                            </div>
+                            <div class="ff-item" style="text-align: right;">
+                                <div class="ff-label">NETWORK CONFIDENCE</div>
+                                <div class="ff-value" id="craters-conf-val" style="color: var(--status-color);">{{ reports[0].stats.avg_conf }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dash-col h-100">
+                        <div class="hud-card h-100" style="flex:1; display:flex; flex-direction:column;">
+                            <div class="hud-card-title mb-10"><i class="fa-solid fa-database"></i> RAW BOUNDING BOX DATA</div>
+                            <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:15px; line-height:1.4;">Live feed from neural network identifying bounds, bounding box dimensions, and surface morphology.</p>
+                            
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>DIAMETER</th>
+                                            <th>MORPHOLOGY</th>
+                                            <th>CONFIDENCE</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="crater-table-body">
+                                        {% for crater in reports[0].crater_data %}
+                                        <tr>
+                                            <td style="color:#fff; font-family:var(--font-numbers);">#{{ crater.id }}</td>
+                                            <td>{{ crater.diameter }} px</td>
+                                            <td style="font-size: 0.7rem;">{{ crater.morphology }}</td>
+                                            <td>
+                                                <div style="color: var(--primary-color);">{{ crater.confidence }}</div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <a href="{{ '/' + reports[0].csv }}" id="export-csv-btn" class="action-btn mt-20" style="text-decoration:none;"><i class="fa-solid fa-download"></i> EXPORT TO CSV</a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE 3: DENSITY ANALYSIS -->
+        <div id="page-density" class="page">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-header-left"><i class="fa-solid fa-chart-line" style="color: var(--primary-color);"></i> STEP 3: DENSITY & DISTRIBUTION</div>
+                </div>
+                
+                <div class="panel-body" style="grid-template-columns: 1fr 1fr;">
+                    {% if uploaded and reports %}
+                    <div class="dash-col">
+                        <div class="feed-header mb-10">CRATER DENSITY HEATMAP</div>
+                        <div class="feed-image-container">
+                            <img src="{{ '/' + reports[0].heatmap }}" style="width:100%;">
+                        </div>
+                        
+                        <div class="flex-row mt-20 gap-20">
+                            <div class="hud-card" style="flex:1;">
+                                <div class="hud-card-title">AVERAGE DENSITY</div>
+                                <div class="metric-value" style="color:var(--status-color);">{{ reports[0].stats.density }}</div>
+                                <div class="metric-label mt-5">PER KM²</div>
+                            </div>
+                            <div class="hud-card" style="flex:1;">
+                                <div class="hud-card-title">EST AGE (CRATERING)</div>
+                                <div class="metric-value" style="font-size: 1rem; color:#fff; font-family:var(--font-heading);">{{ reports[0].stats.age }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dash-col">
+                        <div class="hud-card mb-20">
+                            <div class="hud-card-title">SIZE DISTRIBUTION METRICS</div>
+                            <img src="{{ '/' + reports[0].chart }}" style="width:100%; max-width: 800px; filter: invert(0.9) hue-rotate(180deg) contrast(120%); mix-blend-mode: screen; display:block; margin: 0 auto;">
+                        </div>
+
+                        <div class="hud-card mb-20">
+                            <div class="hud-card-title">TERRAIN CLASSIFICATION</div>
+                            <div class="metric-value mb-10" style="font-size: 1.5rem; color:var(--primary-color);">{{ reports[0].stats.terrain }}</div>
+                            <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Calculated via baseline albedo and total structural disruption (crater frequency). High density typically correlates with Lunar Highlands, while low density smooth zones suggest Mare regions suitable for traversing.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE 4: REGIONAL MAPPING -->
+        <div id="page-regional" class="page">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-header-left"><i class="fa-solid fa-map" style="color: var(--primary-color);"></i> STEP 4: REGIONAL CRATER MAP (MULTI-IMAGE)</div>
+                </div>
+                
+                <div class="panel-body center-layout">
+                    {% if combined_region and summary.images > 1 %}
+                        <div class="dash-col">
+                            <div class="feed-header mb-10" style="text-align:center;">COMBINED MULTI-IMAGE ANALYSIS</div>
+                            <div class="hud-card mb-20" style="border-color:var(--primary-color); text-align:center;">
+                                <div class="metric-value" style="font-size:1.2rem; color:var(--primary-color);">{{ summary.images }} SCANS STITCHED SUCCESSFULLY</div>
+                            </div>
+                            <div class="feed-image-container" style="max-width: 800px; margin: 0 auto; display:block;">
+                                <img src="{{ '/' + combined_region.map_image }}" style="width:100%; height:auto;">
+                            </div>
+                            
+                            <div class="flex-row gap-20 mt-20" style="max-width:800px; margin: 20px auto;">
+                                <div class="hud-card" style="flex:1; text-align:center;">
+                                    <div class="hud-card-title">COMBINED CRATERS</div>
+                                    <div class="metric-value" style="color: var(--primary-color);">{{ combined_region.total_craters }}</div>
+                                </div>
+                                <div class="hud-card" style="flex:1; text-align:center;">
+                                    <div class="hud-card-title">REGIONAL DENSITY</div>
+                                    <div class="metric-value" style="color: var(--status-color);">{{ combined_region.regional_density }}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="hud-card mt-20" style="max-width:1000px; margin: 0 auto; text-align:center;">
+                                <div class="hud-card-title mb-10">REGIONAL SIZE DISTRIBUTION</div>
+                                <img src="{{ '/' + combined_region.chart }}" style="width:100%; max-width: 800px; filter: invert(0.9) hue-rotate(180deg) contrast(120%); mix-blend-mode: screen; display:block; margin: 0 auto;">
+                            </div>
+                            
+                            <div class="hud-card mt-20" style="max-width:800px; margin: 20px auto; text-align:center;">
+                                <div class="hud-card-title pb-10">REGIONAL DATA</div>
+                                <a href="{{ '/' + combined_region.csv }}" class="action-btn" style="text-decoration:none;"><i class="fa-solid fa-download"></i> EXPORT CONTINUOUS REGION CSV</a>
+                            </div>
+                        </div>
+                    {% elif uploaded %}
+                        <div class="hud-card" style="border-color:var(--alert-color); max-width:600px; margin:auto; text-align:center;">
+                            <div class="hud-card-title" style="color:var(--alert-color); font-size:1.2rem;"><i class="fa-solid fa-triangle-exclamation"></i> SINGLE IMAGE MODE DETECTED</div>
+                            <p style="margin-top:20px; font-size:0.9rem; color:#ccc; line-height:1.6;">Only one image was uploaded for this session. A regional map combining multiple images cannot be generated.</p>
+                            <p style="margin-top:10px; font-size:0.9rem; color:#ccc; line-height:1.6;">To generate a robust multi-image regional map, please return to Step 1 and drag-and-drop multiple scan files simultaneously.</p>
+                            
+                            <img src="{{ '/' + reports[0].result_image }}" class="mt-20" style="width:100%; border:1px solid #333; opacity:0.5;">
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE 5: LANDING SAFETY (HIGH/LOW RISK) -->
+        <div id="page-safety" class="page">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-header-left"><i class="fa-solid fa-bullseye" style="color: var(--status-color);"></i> STEP 5: SAFE LANDING SITE SELECTION</div>
+                </div>
+                
+                <div class="panel-body two-cols">
+                    {% if uploaded and reports %}
+                    <div class="dash-col">
+                        <div class="feed-header mb-10">LANDING SAFETY MAP (INTERACTIVE EXPLORER)</div>
+                        <div class="feed-image-container img-magnifier-container">
+                            {% if combined_region and summary.images > 1 %}
+                                <img id="safety-map-img" src="{{ '/' + combined_region.riskmap }}" style="width:100%; display:block;">
+                            {% else %}
+                                <img id="safety-map-img" src="{{ '/' + reports[0].riskmap }}" style="width:100%; display:block;">
+                            {% endif %}
+                            <!-- Legend box superimposed over map -->
+                            <div class="risk-legend">
+                                <div class="hud-card-title mb-10" style="color:#fff;">RISK LEGEND</div>
+                                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                                    <div style="width:20px; height:20px; background:#00FF00;"></div><span style="font-size:0.8rem; color:#fff;">LOW RISK (Smooth)</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                                    <div style="width:20px; height:20px; background:#FFFF00;"></div><span style="font-size:0.8rem; color:#fff;">MED RISK (Uneven)</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <div style="width:20px; height:20px; background:#FF0000;"></div><span style="font-size:0.8rem; color:#fff;">HIGH RISK (Cratered)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dash-col">
+                        <div class="hud-card mb-20" style="border:1px solid #00FF00; background:rgba(0,255,0,0.05);">
+                            <div class="hud-card-title" style="color:#00FF00;"><i class="fa-solid fa-check-circle"></i> LOW RISK LANDING ZONES IDENTIFIED</div>
+                            <p style="font-size:0.8rem; color:var(--text-main); margin-bottom:15px; line-height:1.5;">These target areas feature minimal structural disruption. The terrain is flat, stable, and lacks deep topographical deformations. Ideal for Artemis landing infrastructure.</p>
+                            <div class="metric-value mb-5" style="font-size:1.5rem; color:#00FF00;">GREEN ZONES: SAFE</div>
+                            <button class="action-btn" style="background:#00FF00; color:#000; border:none; margin-top:20px;">LOCK SAFE COORDINATES</button>
+                        </div>
+
+                        <div class="hud-card mb-20" style="border:1px solid #FF0000; background:rgba(255,0,0,0.05);">
+                            <div class="hud-card-title" style="color:#FF0000;"><i class="fa-solid fa-triangle-exclamation"></i> HIGH RISK HAZARD ZONES IDENTIFIED</div>
+                            <p style="font-size:0.8rem; color:var(--text-main); margin-bottom:15px; line-height:1.5;">Extreme clustering and deep topographical overlapping. Craters and uneven terrain in these bounds will cause landing failures.</p>
+                            <div class="metric-value mb-5" style="font-size:1.5rem; color:#FF0000;">RED ZONES: ABORT</div>
+                        </div>
+
+                        <div class="hud-card">
+                            <div class="hud-card-title">USE CASE: SITE SELECTION PROTOCOL</div>
+                            <p style="font-size:0.75rem; color:var(--text-muted); line-height:1.6;">
+                                Before landing spacecraft on the Moon, space agencies must analyze large numbers of satellite images to identify safe landing zones. 
+                                This tool successfully eliminates the slow manual mapping process, identifying failure zones instantly across entire lunar regions.
+                            </p>
+                            <div class="hud-bar mt-20" style="background:var(--primary-color);"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+
+    <!-- Script Handling -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+    <script>
+        // Custom override for upload form styling to jump directly to detection
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('upload-form');
+            if(form) {
+                form.addEventListener('submit', () => {
+                    const btn = document.getElementById('submit-btn');
+                    const uploadArea = document.getElementById('upload-area');
+                    const uploadIconsList = document.querySelectorAll('.upload-card i, .upload-card .hud-card-title, .upload-card p');
+                    uploadIconsList.forEach(el => el.style.opacity = '0.5');
+
+                    btn.style.display = 'none';
+                    document.getElementById('loading-indicator').style.display = 'block';
+                });
+            }
+        });
+
+        function magnify(imgID, zoom) {
+            let img, glass, w, h, bw;
+            img = document.getElementById(imgID);
+            if (!img) return;
+
+            // Remove old glass if exists
+            const oldGlass = document.querySelector('.img-magnifier-glass');
+            if (oldGlass) oldGlass.remove();
+
+            glass = document.createElement("DIV");
+            glass.setAttribute("class", "img-magnifier-glass");
+            img.parentElement.insertBefore(glass, img);
+            
+            glass.style.backgroundImage = "url('" + img.src + "')";
+            glass.style.backgroundRepeat = "no-repeat";
+            glass.style.backgroundSize = (img.width * zoom) + "px " + (img.height * zoom) + "px";
+            bw = 3;
+            w = glass.offsetWidth / 2;
+            h = glass.offsetHeight / 2;
+            
+            const moveMagnifier = function(e) {
+                let pos, x, y;
+                e.preventDefault();
+                pos = getCursorPos(e);
+                x = pos.x;
+                y = pos.y;
+                if (x > img.width - (w / zoom)) {x = img.width - (w / zoom);}
+                if (x < w / zoom) {x = w / zoom;}
+                if (y > img.height - (h / zoom)) {y = img.height - (h / zoom);}
+                if (y < h / zoom) {y = h / zoom;}
+                glass.style.left = (x - w) + "px";
+                glass.style.top = (y - h) + "px";
+                glass.style.backgroundPosition = "-" + ((x * zoom) - w + bw) + "px -" + ((y * zoom) - h + bw) + "px";
+            }
+            
+            const getCursorPos = function(e) {
+                let a, x = 0, y = 0;
+                e = e || window.event;
+                a = img.getBoundingClientRect();
+                x = e.pageX - a.left;
+                y = e.pageY - a.top;
+                x = x - window.pageXOffset;
+                y = y - window.pageYOffset;
+                return {x : x, y : y};
+            }
+            
+            // Because glass has pointer-events: none, we only attach events to the image
+            const hideMagnifier = () => glass.style.display = 'none';
+            const showMagnifier = () => {
+                glass.style.display = 'block';
+                // Recalculate dimensions in case window resized
+                glass.style.backgroundSize = (img.width * zoom) + "px " + (img.height * zoom) + "px";
+            };
+            
+            img.addEventListener("mousemove", moveMagnifier);
+            img.addEventListener("touchmove", moveMagnifier);
+            img.addEventListener("mouseleave", hideMagnifier);
+            img.addEventListener("mouseenter", showMagnifier);
+        }
+
+        // Initialize Magnifier once the image resolves and page is fully rendered
+        window.addEventListener('load', () => {
+            setTimeout(() => { magnify("safety-map-img", 3); }, 500);
+        });
+
+        // --- Crater Detection Results Slider Logic ---
+        {% if images and images|length > 0 %}
+            let sliderImages = {{ images | tojson }};
+            let sliderReports = {{ reports | tojson if reports else '[]' }};
+            let currentIndex = 0;
+
+            function updateSlider() {
+                if (sliderImages.length === 0) return;
+                let imgEl = document.getElementById("crater-image");
+                if (imgEl) imgEl.src = "/static/results/" + sliderImages[currentIndex];
+                
+                let counterEl = document.getElementById("image-counter");
+                if (counterEl) counterEl.innerText = "Image " + (currentIndex + 1) + " / " + sliderImages.length;
+                
+                let headerEl = document.getElementById("detection-filename-header");
+                if (headerEl) headerEl.innerText = "AI VISION OUTPUT // " + sliderImages[currentIndex];
+                
+                // Try pulling report dynamically
+                if (sliderReports && sliderReports.length > currentIndex) {
+                    let rep = sliderReports[currentIndex];
+                    
+                    let totalCratersEl = document.getElementById("craters-total-val");
+                    if (totalCratersEl) totalCratersEl.innerText = rep.stats.total;
+
+                    let confEl = document.getElementById("craters-conf-val");
+                    if (confEl) confEl.innerText = rep.stats.avg_conf;
+
+                    let csvBtn = document.getElementById("export-csv-btn");
+                    if (csvBtn) csvBtn.href = "/" + rep.csv;
+
+                    let tableBody = document.getElementById("crater-table-body");
+                    if (tableBody) {
+                        let html = '';
+                        rep.crater_data.forEach(c => {
+                            html += `<tr>
+                                        <td style="color:#fff; font-family:var(--font-numbers);">#${c.id}</td>
+                                        <td>${c.diameter} px</td>
+                                        <td style="font-size: 0.7rem;">${c.morphology}</td>
+                                        <td><div style="color: var(--primary-color);">${c.confidence}</div></td>
+                                     </tr>`;
+                        });
+                        tableBody.innerHTML = html;
+                    }
+                }
+                
+                // Highlight active thumbnail
+                document.querySelectorAll('.slider-thumb').forEach((thumb, index) => {
+                    if (index === currentIndex) {
+                        thumb.style.borderColor = 'var(--primary-color)';
+                    } else {
+                        thumb.style.borderColor = 'transparent';
+                    }
+                });
+            }
+
+            function nextImage() {
+                if (sliderImages.length === 0) return;
+                currentIndex = (currentIndex + 1) % sliderImages.length;
+                updateSlider();
+            }
+
+            function prevImage() {
+                if (sliderImages.length === 0) return;
+                currentIndex = (currentIndex - 1 + sliderImages.length) % sliderImages.length;
+                updateSlider();
+            }
+
+            function setSliderImage(index) {
+                if (index >= 0 && index < sliderImages.length) {
+                    currentIndex = index;
+                    updateSlider();
+                }
+            }
+
+            document.addEventListener("keydown", function(e) {
+                // Only navigate if detection page is active to avoid interfering with other pages
+                const detectionPage = document.getElementById('page-detection');
+                if (detectionPage && detectionPage.classList.contains('active')) {
+                    if (e.key === "ArrowRight") {
+                        nextImage();
+                    } else if (e.key === "ArrowLeft") {
+                        prevImage();
+                    }
+                }
+            });
+        {% endif %}
+    </script>
+</body>
+</html>

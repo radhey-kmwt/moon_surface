@@ -1,0 +1,17 @@
+dataset/
+datasets/
+data/
+
+
+*.csv
+*.jpg
+*.png
+*.tif
+*.tiff
+*.zip
+
+results/
+outputs/
+generated/
+
+uploads/
